@@ -1,0 +1,5 @@
+fastapi[all]
+uvicorn[standart]==0.18.2
+pymongo[all]==3.12
+redis
+celery

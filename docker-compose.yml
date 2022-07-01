@@ -1,0 +1,78 @@
+version: "3"
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - "27017:27017"
+      - "27018:27018"
+      - "27019:27019"
+    environment:
+        - MONGO_INITDB_ROOT_USERNAME=root
+        - MONGO_INITDB_ROOT_PASSWORD=root
+        - MONGO_INITDB_DATABASE=main
+        - MONGO_INITDB_COLLECTION=weather
+    restart: on-failure
+
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+        - "6379:6379"
+    restart: on-failure
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: celery
+    container_name: celery
+    volumes:
+      - ./:/app/
+    working_dir: /app/
+    ports:
+        - "5672:5672"
+        - "5673:5673"
+        - "5674:5674"
+        - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - MONGO_URL=mongodb://root:root@mongo:27017/
+    command: ['celery', '-A', 'api_parser', 'worker', '-l', 'info', '-E']
+    restart: on-failure
+    depends_on:
+      - redis
+
+  api_parser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+#    container_name: api_parser
+    volumes:
+      - ./:/app/
+#    working_dir: /app/
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - MONGO_URL=mongodb://root:root@mongo:27017/
+    command: python api_parser.py
+    restart: on-failure
+    depends_on:
+      - celery
+      - mongo
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web
+    volumes:
+      - .:/app/
+    ports:
+        - "8000:8000"
+    command: uvicorn main:app --host=0.0.0.0
+    environment:
+      - MONGO_URL=mongodb://root:root@mongo:27017/
+    restart: on-failure
+    depends_on:
+      - api_parser
+      - mongo
